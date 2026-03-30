@@ -1,0 +1,363 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+   url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════
+
+enum UserRole {
+  SUBSCRIBER
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  LAPSED
+  PAST_DUE
+}
+
+enum DrawType {
+  RANDOM
+  ALGORITHMIC
+}
+
+enum DrawStatus {
+  SCHEDULED
+  SIMULATED
+  PUBLISHED
+  CANCELLED
+}
+
+enum MatchTier {
+  FIVE_MATCH
+  FOUR_MATCH
+  THREE_MATCH
+}
+
+enum WinnerVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// ═══════════════════════════════════════════════════════════
+// USER & AUTH
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  avatarUrl     String?
+  role          UserRole @default(SUBSCRIBER)
+  country       String?
+  timezone      String?
+  emailVerified Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscription     Subscription?
+  scores           GolfScore[]
+  charitySelection UserCharitySelection?
+  donations        Donation[]
+  drawEntries      DrawEntry[]
+  winnings         Winner[]
+  notifications    Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ═══════════════════════════════════════════════════════════
+// SUBSCRIPTION & PAYMENTS
+// ═══════════════════════════════════════════════════════════
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  plan                 SubscriptionPlan
+  status               SubscriptionStatus @default(ACTIVE)
+  priceInCents         Int
+  charityPercentage    Float              @default(10.0)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelledAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  amountInCents   Int
+  currency        String   @default("GBP")
+  stripePaymentId String?  @unique
+  prizePoolShare  Int
+  charityShare    Int
+  platformShare   Int
+  paidAt          DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+// ═══════════════════════════════════════════════════════════
+// GOLF SCORES
+// ═══════════════════════════════════════════════════════════
+
+model GolfScore {
+  id        String   @id @default(cuid())
+  userId    String
+  score     Int
+  playedOn  DateTime
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, position])
+  @@index([userId, playedOn(sort: Desc)])
+  @@map("golf_scores")
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAW SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model Draw {
+  id             String     @id @default(cuid())
+  drawDate       DateTime
+  monthYear      String
+  type           DrawType   @default(RANDOM)
+  status         DrawStatus @default(SCHEDULED)
+  winningNumbers Int[]
+  totalPoolCents Int        @default(0)
+  fiveMatchPool  Int        @default(0)
+  fourMatchPool  Int        @default(0)
+  threeMatchPool Int        @default(0)
+  rolloverCents  Int        @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  entries     DrawEntry[]
+  winners     Winner[]
+  simulations DrawSimulation[]
+
+  @@unique([monthYear])
+  @@index([status])
+  @@index([drawDate])
+  @@map("draws")
+}
+
+model DrawEntry {
+  id        String   @id @default(cuid())
+  drawId    String
+  userId    String
+  scores    Int[]
+  enteredAt DateTime @default(now())
+
+  draw Draw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([drawId, userId])
+  @@index([drawId])
+  @@map("draw_entries")
+}
+
+model DrawSimulation {
+  id               String   @id @default(cuid())
+  drawId           String
+  simulatedNumbers Int[]
+  fiveMatchCount   Int      @default(0)
+  fourMatchCount   Int      @default(0)
+  threeMatchCount  Int      @default(0)
+  notes            String?
+  simulatedAt      DateTime @default(now())
+
+  draw Draw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+
+  @@index([drawId])
+  @@map("draw_simulations")
+}
+
+// ═══════════════════════════════════════════════════════════
+// WINNERS & PAYOUTS
+// ═══════════════════════════════════════════════════════════
+
+model Winner {
+  id                 String                   @id @default(cuid())
+  drawId             String
+  userId             String
+  matchTier          MatchTier
+  matchedNumbers     Int[]
+  prizeAmountCents   Int
+  verificationStatus WinnerVerificationStatus @default(PENDING)
+  proofImageUrl      String?
+  adminNotes         String?
+  verifiedAt         DateTime?
+  payoutStatus       PayoutStatus             @default(PENDING)
+  paidAt             DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  draw Draw @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([drawId])
+  @@index([userId])
+  @@index([verificationStatus])
+  @@index([payoutStatus])
+  @@map("winners")
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHARITY SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+model Charity {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  logoUrl       String?
+  coverImageUrl String?
+  websiteUrl    String?
+  category      String?
+  country       String?
+  isFeatured    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  events         CharityEvent[]
+  userSelections UserCharitySelection[]
+  donations      Donation[]
+
+  @@index([slug])
+  @@index([isFeatured])
+  @@index([isActive])
+  @@map("charities")
+}
+
+model CharityEvent {
+  id          String   @id @default(cuid())
+  charityId   String
+  title       String
+  description String?
+  eventDate   DateTime
+  location    String?
+  imageUrl    String?
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  charity Charity @relation(fields: [charityId], references: [id], onDelete: Cascade)
+
+  @@index([charityId])
+  @@index([eventDate])
+  @@map("charity_events")
+}
+
+model UserCharitySelection {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  charityId           String
+  contributionPercent Float    @default(10.0)
+  selectedAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  charity Charity @relation(fields: [charityId], references: [id], onDelete: Cascade)
+
+  @@index([charityId])
+  @@map("user_charity_selections")
+}
+
+model Donation {
+  id            String   @id @default(cuid())
+  userId        String
+  charityId     String
+  amountInCents Int
+  currency      String   @default("GBP")
+  isIndependent Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  charity Charity @relation(fields: [charityId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([charityId])
+  @@index([createdAt])
+  @@map("donations")
+}
+
+// ═══════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  type      String
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLATFORM CONFIG
+// ═══════════════════════════════════════════════════════════
+
+model PlatformConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_config")
+}
