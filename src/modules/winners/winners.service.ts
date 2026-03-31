@@ -1,3 +1,4 @@
+import { sendPayoutConfirmation } from "../../common/utils/email";
 import { prisma } from "../../config/prisma";
 import { VerifyWinnerInput, UpdatePayoutInput } from "./winners.schema";
 
@@ -73,13 +74,20 @@ export class WinnersService {
 
   // Admin — update payout
   static async updatePayout(winnerId: string, data: UpdatePayoutInput) {
-    return prisma.winner.update({
+    const updated = await prisma.winner.update({
       where: { id: winnerId },
       data: {
         payoutStatus: data.payoutStatus,
         paidAt: data.payoutStatus === "PAID" ? new Date() : null,
       },
     });
+    if (data.payoutStatus === "PAID") {
+      const userData = await prisma.user.findUnique({ where: { id: updated.userId } });
+      if (userData) {
+        sendPayoutConfirmation(userData.email, userData.firstName, updated.prizeAmountCents).catch(console.error);
+      }
+    }
+    return updated;
   }
 
   // Admin — get by draw

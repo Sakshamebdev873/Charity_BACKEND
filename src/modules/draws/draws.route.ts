@@ -7,15 +7,19 @@ import { createDrawSchema, updateDrawSchema } from "./draws.schema";
 
 const router = Router();
 
-// Public / subscriber
+// ═══ SPECIFIC routes FIRST (no :id) ═══
+router.get("/upcoming", authenticate, DrawsController.getUpcoming);
 router.get("/published", authenticate, DrawsController.getPublished);
 
-// Admin
+// ═══ ADMIN routes ═══
 router.get("/", authenticate, adminOnly, DrawsController.getAll);
-router.get("/:id", authenticate, adminOnly, DrawsController.getById);
 router.post("/", authenticate, adminOnly, validate(createDrawSchema), DrawsController.create);
+
+// ═══ PARAM routes LAST (/:id catches everything) ═══
+router.get("/:id", authenticate, adminOnly, DrawsController.getById);
 router.patch("/:id", authenticate, adminOnly, validate(updateDrawSchema), DrawsController.update);
 router.post("/:id/simulate", authenticate, adminOnly, DrawsController.simulate);
 router.post("/:id/execute", authenticate, adminOnly, DrawsController.execute);
+router.delete("/:id", authenticate, adminOnly, DrawsController.delete);
 
 export default router;

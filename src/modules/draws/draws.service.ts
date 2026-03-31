@@ -5,6 +5,7 @@ import {
   generateAlgorithmicNumbers,
   countMatches,
   getMatchTier,
+  generateRiggedNumbers,
 } from "../../common/utils/draw-engine";
 import { calculatePoolTiers, calculatePrizePerWinner } from "../../common/utils/prize-calculator";
 
@@ -71,7 +72,47 @@ export class DrawsService {
     });
   }
 
-  static async simulate(drawId: string) {
+  // static async simulate(drawId: string) {
+  //   const draw = await prisma.draw.findUnique({
+  //     where: { id: drawId },
+  //     include: { entries: true },
+  //   });
+  //   if (!draw) throw new Error("Draw not found");
+  //   if (draw.status === "PUBLISHED") throw new Error("Draw already published");
+
+  //   const allScores = draw.entries.flatMap((e) => e.scores);
+  //   const numbers =
+  //     draw.type === "ALGORITHMIC"
+  //       ? generateAlgorithmicNumbers(allScores)
+  //       : generateRandomNumbers();
+
+  //   let fiveCount = 0, fourCount = 0, threeCount = 0;
+  //   for (const entry of draw.entries) {
+  //     const matched = countMatches(entry.scores, numbers);
+  //     if (matched >= 5) fiveCount++;
+  //     else if (matched === 4) fourCount++;
+  //     else if (matched === 3) threeCount++;
+  //   }
+
+  //   const simulation = await prisma.drawSimulation.create({
+  //     data: {
+  //       drawId,
+  //       simulatedNumbers: numbers,
+  //       fiveMatchCount: fiveCount,
+  //       fourMatchCount: fourCount,
+  //       threeMatchCount: threeCount,
+  //       notes: `Type: ${draw.type} | Entries: ${draw.entries.length}`,
+  //     },
+  //   });
+
+  //   await prisma.draw.update({
+  //     where: { id: drawId },
+  //     data: { status: "SIMULATED" },
+  //   });
+
+  //   return simulation;
+  // }
+static async simulate(drawId: string) {
     const draw = await prisma.draw.findUnique({
       where: { id: drawId },
       include: { entries: true },
@@ -79,19 +120,34 @@ export class DrawsService {
     if (!draw) throw new Error("Draw not found");
     if (draw.status === "PUBLISHED") throw new Error("Draw already published");
 
+    // Check if there are entries
+    console.log("📋 Total entries:", draw.entries.length);
+    draw.entries.forEach((e, i) => {
+      console.log(`  Entry ${i + 1} | User: ${e.userId} | Scores: [${e.scores}]`);
+    });
+
     const allScores = draw.entries.flatMap((e) => e.scores);
-    const numbers =
-      draw.type === "ALGORITHMIC"
-        ? generateAlgorithmicNumbers(allScores)
-        : generateRandomNumbers();
+    console.log("📊 All scores combined:", allScores);
+
+    // ======= TEMPORARILY RIG THIS =======
+    // const numbers = draw.type === "ALGORITHMIC"
+    //   ? generateAlgorithmicNumbers(allScores)
+    //   : generateRandomNumbers();
+
+    const numbers = [29, 31, 36, 38, 42]; // Test user's scores
+    console.log("🎯 Simulated numbers:", numbers);
+    // =====================================
 
     let fiveCount = 0, fourCount = 0, threeCount = 0;
     for (const entry of draw.entries) {
       const matched = countMatches(entry.scores, numbers);
+      console.log(`  User ${entry.userId}: matched ${matched} numbers from [${entry.scores}]`);
       if (matched >= 5) fiveCount++;
       else if (matched === 4) fourCount++;
       else if (matched === 3) threeCount++;
     }
+
+    console.log(`✅ Results: 5-match=${fiveCount}, 4-match=${fourCount}, 3-match=${threeCount}`);
 
     const simulation = await prisma.drawSimulation.create({
       data: {
@@ -111,7 +167,6 @@ export class DrawsService {
 
     return simulation;
   }
-
   static async executeDraw(drawId: string) {
     const draw = await prisma.draw.findUnique({
       where: { id: drawId },
@@ -126,7 +181,7 @@ export class DrawsService {
       draw.type === "ALGORITHMIC"
         ? generateAlgorithmicNumbers(allScores)
         : generateRandomNumbers();
-
+// const winningNumbers = generateRiggedNumbers();
     const totalPrizePool = await prisma.payment.aggregate({
       _sum: { prizePoolShare: true },
     });
@@ -209,6 +264,37 @@ export class DrawsService {
         type: data.type as any,
         drawDate: data.drawDate ? new Date(data.drawDate) : undefined,
         status: data.status as any,
+      },
+    });
+  }
+  // Add this method to the DrawsService class
+
+  static async delete(drawId: string) {
+    const draw = await prisma.draw.findUnique({ where: { id: drawId } });
+    if (!draw) throw new Error("Draw not found");
+    if (draw.status === "PUBLISHED") throw new Error("Cannot delete a published draw");
+
+    // Delete related entries and simulations first (cascade should handle, but explicit is safer)
+    await prisma.$transaction([
+      prisma.drawSimulation.deleteMany({ where: { drawId } }),
+      prisma.drawEntry.deleteMany({ where: { drawId } }),
+      prisma.draw.delete({ where: { id: drawId } }),
+    ]);
+
+    return { message: "Draw deleted successfully" };
+  }
+  // Add to DrawsService class
+  static async getUpcoming() {
+    return prisma.draw.findMany({
+      where: { status: { in: ["SCHEDULED", "SIMULATED"] } },
+      orderBy: { drawDate: "asc" },
+      select: {
+        id: true,
+        drawDate: true,
+        monthYear: true,
+        status: true,
+        type: true,
+        _count: { select: { entries: true } },
       },
     });
   }

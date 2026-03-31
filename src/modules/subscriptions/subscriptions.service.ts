@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { CreateSubscriptionInput, UpdateSubscriptionInput } from "./subscriptions.schema";
 import { calculatePaymentSplit } from "../../common/utils/prize-calculator";
+import { sendSubscriptionConfirmation } from "../../common/utils/email";
 
 const PRICES = {
   MONTHLY: 999,   // £9.99
@@ -87,7 +88,17 @@ export class SubscriptionsService {
 
       return subscription;
     });
-
+const charityData = await prisma.charity.findUnique({ where: { id: data.charityId } });
+    const userData = await prisma.user.findUnique({ where: { id: userId } });
+    if (userData && charityData) {
+      sendSubscriptionConfirmation(
+        userData.email,
+        userData.firstName,
+        data.plan,
+        charityData.name,
+        data.charityPercentage
+      ).catch(console.error);
+    }
     return result;
   }
 

@@ -66,4 +66,23 @@ export class DrawsController {
       res.status(400).json({ success: false, message: error.message });
     }
   }
+  // Add this method to the DrawsController class
+
+  static async delete(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const result = await DrawsService.delete(req.params.id);
+      res.json({ success: true, message: result.message });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+  // Add to DrawsController class
+  static async getUpcoming(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const draws = await DrawsService.getUpcoming();
+      res.json({ success: true, data: draws });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
 }

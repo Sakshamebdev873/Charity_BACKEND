@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { RegisterInput, LoginInput } from "./auth.schema";
+import { sendWelcomeEmail } from "../../common/utils/email";
 
 export class AuthService {
   static async register(data: RegisterInput) {
@@ -32,6 +33,10 @@ export class AuthService {
     });
 
     const token = this.generateToken(user.id, user.role);
+
+    // Send welcome email (non-blocking)
+    sendWelcomeEmail(user.email, user.firstName).catch(console.error);
+
     return { user, token };
   }
 
