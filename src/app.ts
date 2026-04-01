@@ -26,6 +26,8 @@ import stripeWebhookRoutes from "./modules/subscriptions/stripe-webhook.route";
 const app = express();
 
 // ── Global Middleware ──
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookRoutes);
+
 app.use(helmet());
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
 app.use(morgan("dev"));
@@ -58,7 +60,6 @@ app.use("/api/winners", winnersRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/platform-config", platformConfigRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/stripe/webhook", stripeWebhookRoutes);
 app.use("/api/uploads", uploadsRoutes);
 // ── 404 Handler ──
 app.use((_req, res) => {
