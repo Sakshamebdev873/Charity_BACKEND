@@ -16,7 +16,11 @@ export class SubscriptionsService {
     if (!user) throw new Error("User not found");
 
     const existing = await prisma.subscription.findUnique({ where: { userId } });
-    if (existing && existing.status === "ACTIVE") throw new Error("You already have an active subscription");
+    
+    // Allow if upgrading: only block if they have an active subscription for the EXACT SAME plan
+    if (existing && existing.status === "ACTIVE" && existing.plan === data.plan) {
+      throw new Error(`You already have an active ${data.plan} subscription`);
+    }
 
     const priceInPaisa = PRICES[data.plan];
     const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
@@ -61,8 +65,10 @@ export class SubscriptionsService {
         plan: data.plan,
         charityId: data.charityId,
         charityPercentage: String(data.charityPercentage),
+        // Pass the old subscription ID so we can cancel it in the webhook
+        oldStripeSubId: existing?.stripeSubscriptionId || "", 
       },
-   success_url: `${clientUrl}/dashboard/subscribe?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${clientUrl}/dashboard/subscribe?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${clientUrl}/dashboard/subscribe?cancelled=true`,
     });
 
@@ -79,11 +85,22 @@ export class SubscriptionsService {
     const plan = session.metadata?.plan as "MONTHLY" | "YEARLY";
     const charityId = session.metadata?.charityId;
     const charityPercentage = parseFloat(session.metadata?.charityPercentage || "10");
+    const oldStripeSubId = session.metadata?.oldStripeSubId;
 
     if (!userId || !plan || !charityId) throw new Error("Missing metadata");
 
     const priceInPaisa = PRICES[plan];
     const stripeSubscription = session.subscription as any;
+
+    // "Cancel & Replace" logic: Cancel the old Stripe subscription so they aren't double billed
+    if (oldStripeSubId && oldStripeSubId !== stripeSubscription?.id) {
+      try {
+        await stripe.subscriptions.cancel(oldStripeSubId);
+        console.log(`Cancelled previous Stripe subscription: ${oldStripeSubId}`);
+      } catch (error) {
+        console.error("Failed to cancel old Stripe subscription during upgrade:", error);
+      }
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // Upsert subscription
