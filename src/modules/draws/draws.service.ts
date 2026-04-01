@@ -177,11 +177,11 @@ static async simulate(drawId: string) {
     if (draw.entries.length === 0) throw new Error("No entries for this draw");
 
     const allScores = draw.entries.flatMap((e) => e.scores);
-    // const winningNumbers =
-    //   draw.type === "ALGORITHMIC"
-    //     ? generateAlgorithmicNumbers(allScores)
-    //     : generateRandomNumbers();
-const winningNumbers = generateRiggedNumbers();
+    const winningNumbers =
+      draw.type === "ALGORITHMIC"
+        ? generateAlgorithmicNumbers(allScores)
+        : generateRandomNumbers();
+// const winningNumbers = generateRiggedNumbers();
     const totalPrizePool = await prisma.payment.aggregate({
       _sum: { prizePoolShare: true },
     });
