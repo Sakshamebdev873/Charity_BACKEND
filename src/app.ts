@@ -4,8 +4,8 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import { env } from "./config/env";
-
 // Route imports
+import uploadsRoutes from "./modules/uploads/uploads.route";
 import authRoutes from "./modules/auth/auth.route";
 import usersRoutes from "./modules/users/users.route";
 import subscriptionsRoutes from "./modules/subscriptions/subscriptions.route";
@@ -32,7 +32,6 @@ app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
 // ── Health Check ──
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -42,7 +41,6 @@ app.get("/api/health", (_req, res) => {
     environment: env.NODE_ENV,
   });
 });
-
 // ── API Routes ──
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
@@ -61,6 +59,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/platform-config", platformConfigRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/stripe/webhook", stripeWebhookRoutes);
+app.use("/api/uploads", uploadsRoutes);
 // ── 404 Handler ──
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });

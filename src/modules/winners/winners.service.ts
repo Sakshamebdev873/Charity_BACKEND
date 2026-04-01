@@ -30,11 +30,14 @@ export class WinnersService {
     const winner = await prisma.winner.findUnique({ where: { id: winnerId } });
     if (!winner) throw new Error("Winner record not found");
     if (winner.userId !== userId) throw new Error("Unauthorized");
-    if (winner.verificationStatus !== "PENDING") throw new Error("Proof already submitted or reviewed");
+    if (winner.verificationStatus !== "PENDING") throw new Error("Already reviewed");
 
     return prisma.winner.update({
       where: { id: winnerId },
-      data: { proofImageUrl },
+      data: {
+        proofImageUrl,
+        verificationStatus: "PENDING", // stays pending until admin reviews
+      },
     });
   }
 

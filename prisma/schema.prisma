@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-   url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -77,21 +78,35 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  subscription     Subscription?
-  scores           GolfScore[]
-  charitySelection UserCharitySelection?
-  donations        Donation[]
-  drawEntries      DrawEntry[]
-  winnings         Winner[]
-  notifications    Notification[]
+  subscription       Subscription?
+  scores             GolfScore[]
+  charitySelection   UserCharitySelection?
+  donations          Donation[]
+  drawEntries        DrawEntry[]
+  winnings           Winner[]
+  notifications      Notification[]
+  verificationTokens VerificationToken[]
 
   @@index([email])
   @@index([role])
   @@map("users")
 }
 
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("verification_tokens")
+}
+
 // ═══════════════════════════════════════════════════════════
-// SUBSCRIPTION & PAYMENTS
+// SUBSCRIPTION & PAYMENTS (amounts in paisa — ₹1 = 100 paisa)
 // ═══════════════════════════════════════════════════════════
 
 model Subscription {
@@ -99,7 +114,7 @@ model Subscription {
   userId               String             @unique
   plan                 SubscriptionPlan
   status               SubscriptionStatus @default(ACTIVE)
-  priceInCents         Int
+  priceInCents         Int                // stored in paisa
   charityPercentage    Float              @default(10.0)
   stripeCustomerId     String?
   stripeSubscriptionId String?
@@ -120,12 +135,12 @@ model Subscription {
 model Payment {
   id              String   @id @default(cuid())
   subscriptionId  String
-  amountInCents   Int
-  currency        String   @default("GBP")
+  amountInCents   Int      // paisa
+  currency        String   @default("INR")
   stripePaymentId String?  @unique
-  prizePoolShare  Int
-  charityShare    Int
-  platformShare   Int
+  prizePoolShare  Int      // paisa
+  charityShare    Int      // paisa
+  platformShare   Int      // paisa
   paidAt          DateTime @default(now())
   createdAt       DateTime @default(now())
 
@@ -143,9 +158,9 @@ model Payment {
 model GolfScore {
   id        String   @id @default(cuid())
   userId    String
-  score     Int
+  score     Int      // 1–45 Stableford
   playedOn  DateTime
-  position  Int
+  position  Int      // 1 (newest) to 5 (oldest)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -227,7 +242,7 @@ model Winner {
   userId             String
   matchTier          MatchTier
   matchedNumbers     Int[]
-  prizeAmountCents   Int
+  prizeAmountCents   Int                      // paisa
   verificationStatus WinnerVerificationStatus @default(PENDING)
   proofImageUrl      String?
   adminNotes         String?
@@ -314,8 +329,8 @@ model Donation {
   id            String   @id @default(cuid())
   userId        String
   charityId     String
-  amountInCents Int
-  currency      String   @default("GBP")
+  amountInCents Int      // paisa
+  currency      String   @default("INR")
   isIndependent Boolean  @default(false)
   createdAt     DateTime @default(now())
 

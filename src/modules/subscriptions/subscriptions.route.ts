@@ -7,13 +7,14 @@ import { createSubscriptionSchema, updateSubscriptionSchema } from "./subscripti
 
 const router = Router();
 
-// Subscriber routes
-router.post("/", authenticate, validate(createSubscriptionSchema), SubscriptionsController.create);
+// Subscriber
+router.post("/checkout", authenticate, validate(createSubscriptionSchema), SubscriptionsController.createCheckout);
+router.post("/confirm", authenticate, SubscriptionsController.confirmCheckout);
 router.get("/me", authenticate, SubscriptionsController.getMine);
 router.patch("/me", authenticate, validate(updateSubscriptionSchema), SubscriptionsController.update);
 router.post("/me/cancel", authenticate, SubscriptionsController.cancel);
 
-// Admin routes
+// Admin
 router.get("/", authenticate, adminOnly, SubscriptionsController.getAll);
 router.patch("/admin/:userId", authenticate, adminOnly, SubscriptionsController.adminUpdate);
 

@@ -3,10 +3,23 @@ import { SubscriptionsService } from "./subscriptions.service";
 import { AuthRequest } from "../../common/types";
 
 export class SubscriptionsController {
-  static async create(req: AuthRequest, res: Response): Promise<void> {
+  // Creates Stripe Checkout — returns redirect URL
+  static async createCheckout(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const sub = await SubscriptionsService.create(req.user!.userId, req.body);
-      res.status(201).json({ success: true, message: "Subscription created", data: sub });
+      const result = await SubscriptionsService.createCheckoutSession(req.user!.userId, req.body);
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  // Called after successful Stripe redirect
+  static async confirmCheckout(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { sessionId } = req.body;
+      if (!sessionId) { res.status(400).json({ success: false, message: "Session ID required" }); return; }
+      const sub = await SubscriptionsService.activateFromCheckout(sessionId);
+      res.json({ success: true, message: "Subscription activated", data: sub });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
     }
@@ -39,7 +52,6 @@ export class SubscriptionsController {
     }
   }
 
-  // Admin
   static async getAll(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { page = "1", limit = "20" } = req.query as any;
@@ -53,7 +65,7 @@ export class SubscriptionsController {
   static async adminUpdate(req: AuthRequest, res: Response): Promise<void> {
     try {
       const sub = await SubscriptionsService.adminUpdate(req.params.userId, req.body);
-      res.json({ success: true, message: "Subscription updated by admin", data: sub });
+      res.json({ success: true, message: "Updated by admin", data: sub });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
     }

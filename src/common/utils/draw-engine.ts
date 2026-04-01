@@ -70,7 +70,7 @@ export function countMatches(userScores: number[], winningNumbers: number[]): nu
 // Add this TEMPORARY function for testing
 export function generateRiggedNumbers(): number[] {
   // Test user's scores — guarantees 5-match jackpot
-  return [29, 31, 36, 38, 42];
+  return [42,38,36,31,29];
 }
 export function getMatchTier(matchCount: number): "FIVE_MATCH" | "FOUR_MATCH" | "THREE_MATCH" | null {
   if (matchCount >= 5) return "FIVE_MATCH";
