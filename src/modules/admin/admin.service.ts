@@ -62,10 +62,14 @@ export class AdminService {
   }
 
   static async getReports() {
-    // Monthly revenue
-    const monthlyPayments = await prisma.payment.groupBy({
-      by: [],
-      _sum: { amountInCents: true, prizePoolShare: true, charityShare: true, platformShare: true },
+    // Use aggregate instead of groupBy with empty by
+    const totalPayments = await prisma.payment.aggregate({
+      _sum: {
+        amountInCents: true,
+        prizePoolShare: true,
+        charityShare: true,
+        platformShare: true,
+      },
       _count: true,
     });
 
@@ -79,7 +83,7 @@ export class AdminService {
     });
 
     const charityDetails = await prisma.charity.findMany({
-      where: { id: { in: topCharities.map((c:any) => c.charityId) } },
+      where: { id: { in: topCharities.map((c) => c.charityId) } },
       select: { id: true, name: true, slug: true },
     });
 
@@ -91,9 +95,12 @@ export class AdminService {
     });
 
     return {
-      revenue: monthlyPayments,
-      topCharities: topCharities.map((tc:any) => ({
-        charity: charityDetails.find((c:any) => c.id === tc.charityId),
+      revenue: {
+        _sum: totalPayments._sum,
+        _count: totalPayments._count,
+      },
+      topCharities: topCharities.map((tc) => ({
+        charity: charityDetails.find((c) => c.id === tc.charityId),
         totalCents: tc._sum.amountInCents || 0,
         count: tc._count,
       })),
